@@ -333,10 +333,8 @@ bool sendFileToDropbox(char* localFile, String address){
   Serial.println("Done");
   
   Serial.println("Opening file system");
-
-  char* fff = "/test.avi";
     
-  File files = SD_MMC.open(fff);
+  File files = SD_MMC.open(localFile);
 
   uint32_t sizeFile=files.size();
 
@@ -349,7 +347,7 @@ bool sendFileToDropbox(char* localFile, String address){
                "User-Agent: ESP32/Arduino_Dropbox_Manager"+"\r\n" +
                Aut_Bearer + access_token +"\r\n" +
                _accept +
-               "Dropbox-API-Arg: {\"path\": \"" + fff + "\",\"mode\": \""  + "add" + "\",\"autorename\": true,\"mute\": false}\r\n" +
+               "Dropbox-API-Arg: {\"path\": \"" + address + "\",\"mode\": \""  + "add" + "\",\"autorename\": true,\"mute\": false}\r\n" +
                content_type_octet +
                "Content-Length: " + sizeFile + "\r\n\r\n"
                );
@@ -374,39 +372,29 @@ bool sendFileToDropbox(char* localFile, String address){
   Serial.print("Client connected: ");
   Serial.println(client.connected());
 
-  while (client.connected()) {
+  while (client.connected() && ((millis()-millisTimeoutClient)<30000)) {
     line = client.readStringUntil('\n');
-    Serial.println(line);
+    if (line == "\r") {
+      break;
+    }
   }
 
+  line = client.readStringUntil('\n');
+  line = client.readStringUntil('\n');
+//  client.close();
   client.stop();
 
-  return true;
-
-
-//  while (client.connected() && ((millis()-millisTimeoutClient)<30000)) {
-//    line = client.readStringUntil('\n');
-//    if (line == "\r") {
-//      break;
-//    }
-//  }
-//
-//  line = client.readStringUntil('\n');
-//  line = client.readStringUntil('\n');
-////  client.close();
-//  client.stop();
-//
-////  //delete client;
-//  if (line.startsWith("{\"name\": \"")) {
-//    Serial.println("Successfull!!!");
-//    Serial.println("File sent!");
-//    return true;
-//  } else {
-//    
-//    Serial.println("ERROR!!!");
-//    Serial.println(line);
-//    return false;
-//  }
+//  //delete client;
+  if (line.startsWith("{\"name\": \"")) {
+    Serial.println("Successfull!!!");
+    Serial.println("File sent!");
+    return true;
+  } else {
+    
+    Serial.println("ERROR!!!");
+    Serial.println(line);
+    return false;
+  }
 }
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
