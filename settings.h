@@ -45,7 +45,7 @@ volatile int  total_frames_config = 100;  //  how many frames - length of movie 
 int exposure = 0; // right exposure
 
 // DROPBOX
-const String access_token = "RRoeLNIEDVkAAAAAAAAAARvBSPSuJf2x3hhl0qFXpk6cMrOZcZ35_qWfgiHi94Q9";
+const String access_token = "*******";
 
 
 // UXGA 1 frame every 10 seconds for 60 minutes, and repeat, play at 30 fps or 300 times speed
