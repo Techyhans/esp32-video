@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 import dropbox
+import os
 from dropbox.files import WriteMode
 from dropbox.exceptions import ApiError, AuthError
 
@@ -9,7 +10,7 @@ from dropbox.exceptions import ApiError, AuthError
 Enter you token here...
 See <https://blogs.dropbox.com/developers/2014/05/generate-an-access-token-for-your-own-account/>
 """
-TOKEN = 'FyIOnxGNo_4AAAAAAAAAASPHz9w7Dcx-pnGmUl7E5wS8I772N0fnyq-5M66XADNl'
+TOKEN = os.environ['DROPBOX_TOKEN']
 
 app = FastAPI()
 
@@ -21,6 +22,14 @@ class UploadRequest(BaseModel):
 
 @app.get("/")
 async def root():
+    with dropbox.Dropbox(TOKEN) as dbx:
+
+        # Check that the access token is valid
+        try:
+            dbx.users_get_current_account()
+        except AuthError:
+            raise HTTPException(status_code=400, detail="Unable to connect to dropbox")
+
     return {"message": "Connected Successfully!"}
 
 
@@ -54,4 +63,4 @@ def upload(req: UploadRequest):
                     print(err)
                     raise HTTPException(status_code=400, detail=err)
 
-        return {"message": "uploaded"}
+        return {"message": f"uploaded {req.targetPath}"}
