@@ -1,2 +1,3 @@
 dropbox==10.6.0
 fastapi==0.70.0
+uvicorn==0.15.0
