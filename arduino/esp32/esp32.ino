@@ -147,7 +147,13 @@ bool InternetFailed = false;
 
 #include <WiFiClient.h>    
 #include <WiFiClientSecure.h>
+#include <HTTPClient.h>
+
 WiFiClientSecure client;
+HTTPClient http;
+
+char http_url[100];
+char payload[500];
 
 int diskspeed = 0;
 char fname[100];
@@ -159,13 +165,7 @@ int Wait_for_bot = 0;
 
 #include "ESP32_FTPClient.h"
 
-char ftp_server[] = "192.168.0.190";
-char ftp_user[]   = "pi";
-char ftp_pass[]   = "esp32";
-
 ESP32_FTPClient ftp (ftp_server,ftp_user,ftp_pass, 5000, 2);
-
-#include <HTTPClient.h>
 
 
 // Time
@@ -325,7 +325,9 @@ bool sendFileToFtp(char* localFile, char* address) {
   
   Serial.println(sizeFile);
 
-  while (file.available()) {
+  bool isConnected = ftp.isConnected();
+
+  while (file.available() && isConnected) {
         // Create and fill a buffer
         unsigned char buf[1024];
         int readVal = file.read(buf, sizeof(buf));
@@ -333,92 +335,71 @@ bool sendFileToFtp(char* localFile, char* address) {
   }
   ftp.CloseFile();
   file.close();
-  return true;
+
+  ftp.CloseConnection();
+  return isConnected;
 }
 
+bool testFtpConnection() {
+  ftp.OpenConnection();
 
+  bool isConnected = ftp.isConnected();
+  ftp.CloseConnection();
+  return isConnected;
+}
 
-bool sendFileToDropbox(char* localFile, String address){
-  String upload = "/2/files/upload HTTP/1.1\r\n";
-  String content_type_octet = "Content-Type: application/octet-stream\r\n";
-  String _accept = "Accept: */*\r\n";
-  String Aut_Bearer = "Authorization: Bearer ";
+bool testRaspiConnection() {
+
+  sprintf(http_url, "http://%s:8000/", ftp_server);
+  http.begin(http_url);
+
+  int httpResponseCode = http.GET();
   
-  Serial.println("connecting to dropbox..");
-  int value = client.connect("content.dropboxapi.com",443);
-  Serial.println(value);
-  while (!value){
-    Serial.println("Connection failed!");
-    delay(1000);
-    value = client.connect("content.dropboxapi.com",443);
-    //client.close();
-//    client.stop();
-//    return false;
-  }
-
-  Serial.println("Done");
-  
-  Serial.println("Opening file system");
-    
-  File files = SD_MMC.open(localFile);
-
-  uint32_t sizeFile=files.size();
-
-  Serial.println("Success");
-  
-  Serial.println(sizeFile);
-
-  client.print("POST " + upload +
-  "Host: content.dropboxapi.com\r\n" +
-               "User-Agent: ESP32/Arduino_Dropbox_Manager"+"\r\n" +
-               Aut_Bearer + access_token +"\r\n" +
-               _accept +
-               "Dropbox-API-Arg: {\"path\": \"" + address + "\",\"mode\": \""  + "add" + "\",\"autorename\": true,\"mute\": false}\r\n" +
-               content_type_octet +
-               "Content-Length: " + sizeFile + "\r\n\r\n"
-               );
-  uint32_t index=0;
-  char _buffer[1001];
-
-  while(index<sizeFile){ 
-    yield();
-    index=index+1000;
-    files.readBytes(_buffer,1000);
-    _buffer[1000]='\0';
-    client.print(_buffer);
-  }
-  client.flush();
-  files.close();   
-
-  Serial.println("Request sent!");
-
-  uint32_t millisTimeoutClient;
-  millisTimeoutClient = millis();
-  String line;
-  Serial.print("Client connected: ");
-  Serial.println(client.connected());
-
-  while (client.connected() && ((millis()-millisTimeoutClient)<30000)) {
-    line = client.readStringUntil('\n');
-    if (line == "\r") {
-      break;
-    }
-  }
-
-  line = client.readStringUntil('\n');
-  line = client.readStringUntil('\n');
-//  client.close();
-  client.stop();
-
-//  //delete client;
-  if (line.startsWith("{\"name\": \"")) {
-    Serial.println("Successfull!!!");
-    Serial.println("File sent!");
+  if (httpResponseCode>0 && httpResponseCode < 400) {
+    Serial.print("HTTP Response code: ");
+    Serial.println(httpResponseCode);
+    String payload = http.getString();
+    Serial.println(payload);
+    // Free resources
+    http.end();
     return true;
-  } else {
-    
-    Serial.println("ERROR!!!");
-    Serial.println(line);
+  }
+  else {
+    Serial.print("Error code: ");
+    Serial.println(httpResponseCode);
+    // Free resources
+    http.end();
+    return false;
+  }
+}
+
+bool triggerFileUpload(char* addr) {
+
+  sprintf(http_url, "http://%s:8000/upload", ftp_server);
+  http.begin(http_url);
+
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Accept","*/*");
+
+  sprintf(payload, "{\"filePath\": \"/file/%s\",\"targetPath\": \"/%s\"}", addr, addr);
+
+  int httpResponseCode = http.POST(payload);
+
+  
+  if (httpResponseCode>0 && httpResponseCode < 400) {
+    Serial.print("HTTP Response code: ");
+    Serial.println(httpResponseCode);
+    String payload = http.getString();
+    Serial.println(payload);
+    // Free resources
+    http.end();
+    return true;
+  }
+  else {
+    Serial.print("Error code: ");
+    Serial.println(httpResponseCode);
+    // Free resources
+    http.end();
     return false;
   }
 }
@@ -1222,7 +1203,6 @@ void do_eprom_read() {
     total_frames = ed.total_frames;
     total_frames_config = ed.total_frames; Serial.print("total_frames_config "); Serial.println(total_frames_config );
     xlength = ed.xlength; Serial.print("xlength "); Serial.println(xlength );
-    EnableBOT = 0; Serial.print("EnableBOT "); Serial.println(EnableBOT );
   } else {
     Serial.println("No settings in EPROM - putting in hardcoded settings ");
     do_eprom_write();
@@ -1345,14 +1325,6 @@ void setup() {
 
   if (Internet_Enabled && !InternetFailed) startCameraServer();
 
-  // zzz username and password for ftp server
-
-#ifdef include_ftp
-  //plm print_ram();  delay(2000);
-  Serial.println("Starting ftp ...");
-
-  if (Internet_Enabled && !InternetFailed) ftpSrv.begin("esp", "esp");
-#endif
 
   Serial.printf("Total space: %lluMB\n", SD_MMC.totalBytes() / (1024 * 1024));
   Serial.printf("Used space: %lluMB\n", SD_MMC.usedBytes() / (1024 * 1024));
@@ -1416,6 +1388,18 @@ void setup() {
   print_ram();
 
   if (delete_old_files) delete_old_stuff();
+
+  if (!testFtpConnection()) {
+    Serial.println("Unable to connect to ftp server!!");
+  } else {
+    Serial.println("Connected to ftp server");
+  }
+
+  if (!testRaspiConnection()) {
+    Serial.println("Unable to connect to http server!!");
+  } else {
+    Serial.println("Connected to http server");
+  }
 }
 
 
@@ -1652,16 +1636,6 @@ void make_avi( ) {
     digitalWrite(33, HIGH);
     newfile = 1;
 
-    if (EnableBOT == 1 && Internet_Enabled == 1) {           //  if BOT is enabled wait to send it ... could be several seconds (5 or 10)
-      //89 config_camera();
-      send_a_telegram = 1;
-      Wait_for_bot = 1;
-
-      while (Wait_for_bot == 1) {
-        delay(1000);
-        Serial.print("z");                      // serial monitor will shows these "z" mixed with "*" from telegram sender
-      }
-    }
     Serial.println(" ");
 
     if (delete_old_files) delete_old_stuff();
@@ -1708,12 +1682,18 @@ void make_avi( ) {
 
           char addr[100];
           sprintf(addr, "%s_%s.avi", strftime_buf2, strftime_buf); 
+
+          while (!sendFileToFtp(file_name, addr)){
+            Serial.println("failed to upload in ftp... retrying is 1 second");
+            delay(1000);
+          }
           
-          sendFileToFtp(file_name, addr);
-//          while (!sendFileToDropbox(file_name, fname)){
-//            Serial.println("failed to upload... retrying is 1 second");
-//            delay(1000);
-//          }
+          
+          
+          while (!triggerFileUpload(addr)){
+            Serial.println("failed to upload in http... retrying is 1 second");
+            delay(1000);
+          }
 
         } else  {                                                            // regular
 
@@ -1832,7 +1812,7 @@ static esp_err_t start_avi() {
     sprintf(fname, "/sdcard/%s/%s %s uxga_Q%d_I%d_L%d_S%d.avi", strftime_buf2, devname, strftime_buf, quality, capture_interval, xlength, xspeed);
     sprintf(file_name, "/%s/%s %s uxga_Q%d_I%d_L%d_S%d.avi", strftime_buf2, devname, strftime_buf, quality, capture_interval, xlength, xspeed);
   } else  if (framesize == 6) {
-    sprintf(fname, "/sdcard%s/%s %s cif_Q%d_I%d_L%d_S%d.avi", strftime_buf2, devname, strftime_buf, quality, capture_interval, xlength, xspeed);
+    sprintf(fname, "/sdcard/%s/%s %s cif_Q%d_I%d_L%d_S%d.avi", strftime_buf2, devname, strftime_buf, quality, capture_interval, xlength, xspeed);
     sprintf(file_name, "/%s/%s %s cif_Q%d_I%d_L%d_S%d.avi", strftime_buf2, devname, strftime_buf, quality, capture_interval, xlength, xspeed);
   } else {
     Serial.println("Wrong framesize");
@@ -2310,7 +2290,6 @@ static esp_err_t record_handler(httpd_req_t *req) {
     int new_xspeed = xspeed;
     int new_xlength = capture_interval * total_frames_config / 1000;    // xlength; v88
     int new_gray = gray;
-    int new_bot = EnableBOT;
     int new_pir = PIRenabled;
 
 
@@ -2375,7 +2354,7 @@ static esp_err_t record_handler(httpd_req_t *req) {
         if (httpd_query_key_value(buf, "frame_rate", param, sizeof(param)) == ESP_OK) {
 
           int x = atoi(param);
-          if (x >= 1 && x <= 4) {  //  max 4 fps
+          if (x >= 1 && x <= 30) {  //  max 4 fps
             new_interval = 1000 / x;
             Serial.print("frame_rate = ");
             Serial.println(x);
@@ -2407,7 +2386,6 @@ static esp_err_t record_handler(httpd_req_t *req) {
     quality = new_quality;
     xspeed = new_xspeed;
     gray = new_gray;
-    EnableBOT = new_bot;
     PIRenabled = new_pir;
 
     config_camera();
@@ -2453,8 +2431,7 @@ void do_start() {
  Repeat = %d<br>
  Speed = %d<br>
  Gray = %d<br>
- PIR = %d<br>
- BOT = %d<br><br>
+ PIR = %d<br><br>
 
 <br>
 
@@ -2463,7 +2440,7 @@ void do_start() {
 </html>)rawliteral";
 
 
-  sprintf(the_page, msg, devname, devname, vernum, the_message, recording, capture_interval, capture_interval * total_frames / 1000, quality, framesize, repeat, xspeed, gray, PIRenabled, EnableBOT);
+  sprintf(the_page, msg, devname, devname, vernum, the_message, recording, capture_interval, capture_interval * total_frames / 1000, quality, framesize, repeat, xspeed, gray, PIRenabled);
   //Serial.println(strlen(msg));
 
 }

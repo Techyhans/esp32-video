@@ -1,8 +1,5 @@
-static const char devname[] = "desklens";         // name of your camera for mDNS, Router, and filenames
+static const char devname[] = "esp32";         // name of your camera for mDNS, Router, and filenames
 
-#define include_telegram
-//#define include_pir_and_touch
-//#define include_ftp
 #define include_streaming
 #define get_rid_of_touch
 
@@ -17,8 +14,8 @@ int delete_old_files = 1;       // set to 1 and it will delete your oldest day o
 #define BlinkWithWrite 1
 
 // EDIT ssid and password   **** with Version 98x-WiFiMan, you are using WiFiManager to set ssid and password, so these are redundant
-const char* ssid = "yinchuang96@unifi";
-const char* password = "0162403968";
+const char* ssid = "********";
+const char* password = "*********";
 
 // reboot startup parameters here
 
@@ -44,27 +41,7 @@ int  capture_interval = 250;       //  milli-seconds between frames
 volatile int  total_frames_config = 100;  //  how many frames - length of movie in ms is total_frames x capture_interval
 int exposure = 0; // right exposure
 
-// DROPBOX
-const String access_token = "*******";
-
-
-// UXGA 1 frame every 10 seconds for 60 minutes, and repeat, play at 30 fps or 300 times speed
-/*
-int  framesize = 13;                //  13 UXGA, 11 HD, 9 SVGA, 8 VGA, 6 CIF
-int  repeat_config = 300;                 //  repaeat same movie this many times
-int  xspeed = 300;                   //  playback speed - realtime is 1, or 300 means playpack 30 fps of frames at 10 second per frames ( 30 fps / 0.1 fps ) 
-int  gray = 0;                     //  not gray
-int  quality = 6;                 //  quality on the 10..50 subscale - 10 is good, 20 is grainy and smaller files, 12 is better in bright sunshine due to clipping
-int  capture_interval = 10000;       //  milli-seconds between frames
-volatile int  total_frames_config = 360;  //  how many frames - length of movie is total_frames x capture_interval
-*/
-
-// enable the www.telegram.org BOT - it sends a text and and snapshot to you every time it starts a video
-// https://github.com/witnessmenow/Universal-Arduino-Telegram-Bot
-// I'm using the branch v1.2 from June 2020 - new master introduced late june, but not working for picture and captions, so my v1.2 mods included here
-// You need to create a bot, and get its number BOTtoken, and then get your telegram number -- all free at telegram.org
-// detailed instructions here https://randomnerdtutorials.com/telegram-control-esp32-esp8266-nodemcu-outputs/
-
-RTC_DATA_ATTR int EnableBOT = 0;
-#define BOTtoken  "9876543210:qwertyuiopasdfghjklzxcvbnmqwertyuio"   // get your own bot and id at telegram.org 
-#define BOTme     "1234567890"
+//ftp
+char ftp_server[] = "********"; // also http ip
+char ftp_user[]   = "******";
+char ftp_pass[]   = "*****";
