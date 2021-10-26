@@ -2394,7 +2394,7 @@ static esp_err_t record_handler(httpd_req_t *req) {
         if (httpd_query_key_value(buf, "frame_rate", param, sizeof(param)) == ESP_OK) {
 
           int x = atoi(param);
-          if (x >= 1 && x <= 4) {  //  max 4 fps
+          if (x >= 1 && x <= 30) {  //  max 4 fps
             new_interval = 1000 / x;
             Serial.print("frame_rate = ");
             Serial.println(x);
@@ -2522,7 +2522,7 @@ void do_status() {
 
  Used / Total SD Space <font color="red"> %d MB / %d MB</font>, Rssi %d, SD speed %d<br>
  <br>
- Frame rate %d fps (maximum 4 fps),
+ Frame rate %d fps (maximum 30 fps),
  <br>
  Capture Interval = %d ms, Actual Interval = %d ms, Avg Write time = <font color="red">%d ms</font>, 
  <br><br>Length = %d seconds
@@ -2544,15 +2544,15 @@ void do_status() {
     <input type="text" id="frame_rate" name="frame_rate"><br>
     <label for="resolution">Resolution:</label><br>
     <input type="radio" id="13" name="resolution" value="13">
-    <label for="13">13 UXGA (1600 x 1200) (max 1 fps)</label><br>
+    <label for="13">13 UXGA (1600 x 1200)</label><br>
     <input type="radio" id="11" name="resolution" value="11">
-    <label for="11">11 HD (1280 x 720) (max 1 fps)</label><br>
+    <label for="11">11 HD (1280 x 720)</label><br>
     <input type="radio" id="9" name="resolution" value="9">
-    <label for="9">9 SVGA (800 x 600) (max 2 fps) </label><br>
+    <label for="9">9 SVGA (800 x 600)</label><br>
     <input type="radio" id="8" name="resolution" value="8">
-    <label for="8">8 VGA (640 x 480) (max 4 fps)</label><br>
+    <label for="8">8 VGA (640 x 480)</label><br>
     <input type="radio" id="6" name="resolution" value="6">
-    <label for="6">6 CIF (400 x 296) (max 4 fps)</label><br>
+    <label for="6">6 CIF (400 x 296)</label><br>
     <label for="exposure">Exposure level:</label><br>
     <input type="text" id="exposure" name="exposure"><br>
     <label for="capturing_time">Capturing seconds:</label><br>
