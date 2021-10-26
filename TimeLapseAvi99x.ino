@@ -845,7 +845,9 @@ static esp_err_t save_photo_dated()
   //delay(2000);
 
   strftime(strftime_buf2, sizeof(strftime_buf2), "/%Y%m%d", &timeinfo);
-  SD_MMC.mkdir(strftime_buf2);
+  char dirName[50];
+  sprintf(dirName, "/%s",strftime_buf2);
+  SD_MMC.mkdir(dirName);
 
   strftime(strftime_buf, sizeof(strftime_buf), "%F %H.%M.%S", &timeinfo);
 
