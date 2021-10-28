@@ -1796,7 +1796,9 @@ static esp_err_t start_avi() {
   localtime_r(&now, &timeinfo);
 
   strftime(strftime_buf2, sizeof(strftime_buf2), "%Y%m%d", &timeinfo);
-  SD_MMC.mkdir(strftime_buf2);
+  char dirName[50];
+  sprintf(dirName, "/%s",strftime_buf2);
+  SD_MMC.mkdir(dirName);
 
   strftime(strftime_buf, sizeof(strftime_buf), "%F_%H.%M.%S", &timeinfo);
 
