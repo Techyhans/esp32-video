@@ -17,7 +17,7 @@ In order to achieve the objective, a raspberry pi is required as an intermediate
 2. follow this [link](https://dropbox.tech/developers/generate-an-access-token-for-your-own-account) to generate the access token for dropbox
 
 ## Arduino setup
-1. Fill up the variables which are left  `*****` in `arduino/esp32/setting.h`
+1. Fill up the variables which are left  `*****` in [here](https://github.com/Techyhans/esp32-video/blob/v3/arduino/esp32/esp32.ino#L88-L90)
    1. Wifi ssid
    2. Wifi password
    3. ftp server ip (use `ifconfig` to determine)
