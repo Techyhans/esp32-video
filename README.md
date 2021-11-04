@@ -10,7 +10,7 @@ In order to achieve the objective, a raspberry pi is required as an intermediate
 3. Upon send the file via ftp, esp32 will send a post request to raspberry pi to trigger the file sending to dropbox server.
 
 ## UI
-![](metadata/1.png)
+![image](https://user-images.githubusercontent.com/81958029/140317664-af4394c2-e69d-416b-8d4d-13374539e805.png)
 
 ## Dropbox setup
 1. follow this [link](https://docs.gravityforms.com/creating-a-custom-dropbox-app/) to create a custom app in dropbox
