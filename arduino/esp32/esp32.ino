@@ -82,8 +82,8 @@ int IncludeInternet = 3;      // 0 for no internet, 1 for time only, 2 streaming
 WiFiClientSecure client;
 HTTPClient http;
 
-const char* ssid = "******";
-const char* password = "*****";
+const char* ssid = "yinchuang96@unifi";
+const char* password = "0162403968";
 
 char ftp_server[] = "******"; // also http ip
 char ftp_user[]   = "******";
@@ -1935,6 +1935,7 @@ void the_sd_loop (void* pvParameter) {
     xSemaphoreTake( sd_go, portMAX_DELAY );            // we wait for camera loop to tell us to go
     another_save_avi( fb_curr);                        // do the actual sd wrte
     xSemaphoreGive( wait_for_sd );                     // tell camera loop we are done
+    vTaskDelay(10);
   }
 }
 
@@ -2097,8 +2098,8 @@ void the_camera_loop (void* pvParameter) {
     ulNotifiedValue = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     while (ulNotifiedValue-- > 0)  {
       camera_work();
-      delay(1);
     }
+    vTaskDelay(10);
   }
 }
 
