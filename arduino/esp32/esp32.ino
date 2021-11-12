@@ -85,9 +85,9 @@ HTTPClient http;
 const char* ssid = "yinchuang96@unifi";
 const char* password = "0162403968";
 
-char ftp_server[] = "******"; // also http ip
-char ftp_user[]   = "******";
-char ftp_pass[]   = "******";
+char ftp_server[] = "192.168.0.191"; // also http ip
+char ftp_user[]   = "pi";
+char ftp_pass[]   = "esp32";
 
 #include "ESP32_FTPClient.h"
 
@@ -120,6 +120,8 @@ String czone;
 
 TaskHandle_t the_camera_loop_task;
 TaskHandle_t the_sd_loop_task;
+TaskHandle_t the_restart_task;
+TaskHandle_t the_streaming_loop_task;
 
 SemaphoreHandle_t wait_for_sd;
 SemaphoreHandle_t sd_go;
@@ -1014,10 +1016,6 @@ static esp_err_t start_avi() {
 
   Serial.println("Starting an avi ");
 
-  sprintf(avi_file_name_ori, "%s%d.%03d.avi", devname, file_group, file_number);
-
-  sprintf(avi_file_name, "/%s%d.%03d.avi",  devname, file_group, file_number);
-
   file_number++;
 
   avifile = SD_MMC.open(avi_file_name, "w");
@@ -1563,6 +1561,8 @@ static esp_err_t index_handler(httpd_req_t *req) {
  <br>
  <br><br>
  <form action="http://%s/record">
+    <label for="file_name">File name:</label><br>
+    <input type="text" id="file_name" name="file_name"><br>
     <label for="frame_rate">Frame rate:</label><br>
     <input type="text" id="frame_rate" name="frame_rate"><br>
     <label for="resolution">Resolution:</label><br>
@@ -1652,6 +1652,8 @@ static esp_err_t record_handler(httpd_req_t *req) {
     int new_quality = s->status.quality;
     int new_xlength = avi_length;
     int new_exposure = exposure;
+    char new_filename[100] = "/default.avi";
+    char new_filename_ori[100] = "default.avi";
   
     char  buf[120];
     size_t buf_len;
@@ -1661,9 +1663,21 @@ static esp_err_t record_handler(httpd_req_t *req) {
       if (buf_len > 1) {
         if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
           ESP_LOGI(TAG, "Found URL query => %s", buf);
-          char param[32];
+          char param[100];
           /* Get value of expected key from query string */
           //Serial.println(" ... parameters");
+
+          // file_name
+          if (httpd_query_key_value(buf, "file_name", param, sizeof(param)) == ESP_OK) {
+  
+            sprintf(new_filename_ori, "%s", param);
+            sprintf(new_filename, "/%s", new_filename_ori);
+            Serial.print("file_name = ");
+            Serial.println(param);            
+  
+            ESP_LOGI(TAG, "Found URL query parameter => file_name=%s", param);
+  
+          }
   
           // CAPTURING_TIME
           if (httpd_query_key_value(buf, "capturing_time", param, sizeof(param)) == ESP_OK) {
@@ -1734,6 +1748,8 @@ static esp_err_t record_handler(httpd_req_t *req) {
       quality = new_quality;
       avi_length = new_xlength;
       exposure = new_exposure;  
+      sprintf(avi_file_name, "%s", new_filename);
+      sprintf(avi_file_name_ori, "%s", new_filename_ori);
 
     config_camera();
     do_start();
@@ -1741,6 +1757,147 @@ static esp_err_t record_handler(httpd_req_t *req) {
     xTaskNotifyGive(the_camera_loop_task);
     return ESP_OK;
   }
+}
+
+static esp_err_t restart_handler(httpd_req_t *req) {
+  httpd_resp_send(req, "OK", 2);
+  xTaskNotifyGive(the_restart_task);
+  return ESP_OK;
+}
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//
+//  Streaming stuff based on Random Nerd
+//
+
+bool start_streaming = false;
+
+#define PART_BOUNDARY "123456789000000000000987654321"
+
+static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
+static const char* _STREAM_BOUNDARY = "\r\n--" PART_BOUNDARY "\r\n";
+static const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n";
+
+void the_streaming_loop (void* pvParameter);
+
+static esp_err_t stream_handler(httpd_req_t *req) {
+
+  sensor_t * ss = esp_camera_sensor_get();
+
+  ss->set_exposure_ctrl(ss, 1); 
+
+  long start = millis();
+
+  Serial.print("stream_handler, core ");  Serial.print(xPortGetCoreID());
+  Serial.print(", priority = "); Serial.println(uxTaskPriorityGet(NULL));
+
+  start_streaming = true;
+
+  xTaskCreatePinnedToCore( the_streaming_loop, "the_streaming_loop", 8000, req, 1, &the_streaming_loop_task, 0);
+
+  if ( the_streaming_loop_task == NULL ) {
+    //vTaskDelete( xHandle );
+    Serial.printf("do_the_steaming_task failed to start! %d\n", the_streaming_loop_task);
+  }
+
+  time_in_web1 += (millis() - start);
+
+  while (start_streaming == true) {          // we have to keep the *req alive
+    delay(1000);
+    //Serial.print("z");
+  }
+  Serial.println(" streaming done");
+}
+
+void the_streaming_loop (void* pvParameter) {
+
+  httpd_req_t *req;
+  camera_fb_t * fb = NULL;
+  esp_err_t res = ESP_OK;
+  size_t _jpg_buf_len = 0;
+  uint8_t * _jpg_buf = NULL;
+  char * part_buf[64];
+
+  long start = millis();
+
+  Serial.print("\n\nlow prio stream_handler task, core ");  Serial.print(xPortGetCoreID());
+  Serial.print(", priority = "); Serial.println(uxTaskPriorityGet(NULL));
+
+  req = (httpd_req_t *) pvParameter;
+
+  Serial.println("Starting the streaming");
+
+  res = httpd_resp_set_type(req, _STREAM_CONTENT_TYPE);
+  if (res != ESP_OK) {
+    Serial.printf("after first httpd_resp_set_type %d\n", res);
+    start_streaming = false;
+  }
+
+  int streaming_frames = 0;
+  long streaming_start = millis();
+
+  while (true) {
+    streaming_frames++;
+
+    if (fb_curr == NULL) {
+      fb = get_good_jpeg(); //esp_camera_fb_get();
+      if (!fb) {
+        Serial.println("Stream - Camera Capture Failed");
+        start_streaming = false;
+      }
+      framebuffer_len = fb->len;
+      memcpy(framebuffer, fb->buf, fb->len);
+      esp_camera_fb_return(fb);
+
+    } else {
+      fb = fb_curr;
+      framebuffer_len = fb->len;
+      memcpy(framebuffer, fb->buf, fb->len);
+    }
+
+    _jpg_buf_len = framebuffer_len;
+    _jpg_buf = framebuffer;
+
+    size_t hlen = snprintf((char *)part_buf, 64, _STREAM_PART, _jpg_buf_len);
+    long send_time = millis();
+
+    res = httpd_resp_send_chunk(req, (const char *)part_buf, hlen);
+    if (res != ESP_OK) {
+      //Serial.printf("Stream error - 1st send chunk %d\n",res);
+      start_streaming = false;
+    }
+
+    res = httpd_resp_send_chunk(req, (const char *)_jpg_buf, _jpg_buf_len);
+    if (res != ESP_OK) {
+      //Serial.printf("Stream error - 2nd send chunk %d\n",res);
+      start_streaming = false;
+    }
+
+    res = httpd_resp_send_chunk(req, _STREAM_BOUNDARY, strlen(_STREAM_BOUNDARY));
+    if (res != ESP_OK) {
+      //Serial.printf("Stream error - 3rd send chunk %d\n", res);
+      start_streaming = false;
+    }
+
+    if (millis() - send_time > stream_delay) {
+      stream_delay = stream_delay * 1.5;
+    }
+
+    time_in_web2 += (millis() - start);
+
+    if (streaming_frames % 100 == 10) {
+      if (Lots_of_Stats) Serial.printf("Streaming at %3.3f fps\n", (float)1000 * streaming_frames / (millis() - streaming_start));
+    }
+
+    delay(stream_delay);
+    start = millis();
+
+    if (start_streaming == false) {
+      Serial.println("Deleting the streaming task");
+      delay(100);
+      vTaskDelete(the_streaming_loop_task);
+    }
+  }  // stream forever
 }
 
 void startCameraServer() {
@@ -1754,16 +1911,32 @@ void startCameraServer() {
     .handler   = index_handler,
     .user_ctx  = NULL
   };
+
+  httpd_uri_t stream_uri = {
+    .uri       = "/stream",
+    .method    = HTTP_GET,
+    .handler   = stream_handler,
+    .user_ctx  = NULL
+  };
   httpd_uri_t record_uri = {
     .uri       = "/record",
     .method    = HTTP_GET,
     .handler   = record_handler,
     .user_ctx  = NULL
   };
+
+  httpd_uri_t restart_uri = {
+    .uri       = "/restart",
+    .method    = HTTP_GET,
+    .handler   = restart_handler,
+    .user_ctx  = NULL
+  };
   
   if (httpd_start(&camera_httpd, &config) == ESP_OK) {
     httpd_register_uri_handler(camera_httpd, &index_uri);
     httpd_register_uri_handler(camera_httpd, &record_uri);
+    httpd_register_uri_handler(camera_httpd, &restart_uri);
+    httpd_register_uri_handler(camera_httpd, &stream_uri);
   }
 
   Serial.println("Camera http started");
@@ -1775,6 +1948,7 @@ void stopCameraServer() {
 
 void the_camera_loop (void* pvParameter);
 void the_sd_loop (void* pvParameter);
+void the_restart (void* pvParameter);
 void delete_old_stuff();
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1888,6 +2062,8 @@ void setup() {
 
   xSemaphoreTake( wait_for_sd, portMAX_DELAY );   // will be "given" when sd write is done
   xSemaphoreTake( sd_go, portMAX_DELAY );         // will be "given" when sd write should start
+
+  xTaskCreatePinnedToCore( the_restart, "the_restart", 1000, NULL, 2, &the_restart_task, 1); // prio 3, core 0
 
 //  // prio 3 - higher than the camera loop(), and the streaming
   xTaskCreatePinnedToCore( the_camera_loop, "the_camera_loop", 8000, NULL, 3, &the_camera_loop_task, 0); // prio 3, core 0
@@ -2075,6 +2251,19 @@ void camera_work() {
         }
       }
     }
+}
+
+// restart_task()
+void the_restart (void* pvParameter) {
+  uint32_t ulNotifiedValue;
+  for (;;) {
+    ulNotifiedValue = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    while (ulNotifiedValue-- > 0)  {
+      vTaskDelay(1000);
+      ESP.restart();
+    }
+    vTaskDelay(10);
+  }
 }
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
