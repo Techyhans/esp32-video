@@ -82,12 +82,12 @@ int IncludeInternet = 3;      // 0 for no internet, 1 for time only, 2 streaming
 WiFiClientSecure client;
 HTTPClient http;
 
-const char* ssid = "yinchuang96@unifi";
-const char* password = "0162403968";
+const char* ssid = "******";
+const char* password = "******";
 
-char ftp_server[] = "192.168.0.191"; // also http ip
-char ftp_user[]   = "pi";
-char ftp_pass[]   = "esp32";
+char ftp_server[] = "******"; // also http ip
+char ftp_user[]   = "******";
+char ftp_pass[]   = "******";
 
 #include "ESP32_FTPClient.h"
 
