@@ -82,8 +82,8 @@ int IncludeInternet = 3;      // 0 for no internet, 1 for time only, 2 streaming
 WiFiClientSecure client;
 HTTPClient http;
 
-const char* ssid = "******";
-const char* password = "******";
+const char* ssid = "***";
+const char* password = "***";
 
 char ftp_server[] = "******"; // also http ip
 char ftp_user[]   = "******";
@@ -222,8 +222,8 @@ File logfile;
 File avifile;
 File idxfile;
 
-char avi_file_name[100];
-char avi_file_name_ori[100];
+char avi_file_name[120];
+char avi_file_name_ori[120];
 
 static int i = 0;
 uint16_t frame_cnt = 0;
@@ -1652,10 +1652,10 @@ static esp_err_t record_handler(httpd_req_t *req) {
     int new_quality = s->status.quality;
     int new_xlength = avi_length;
     int new_exposure = exposure;
-    char new_filename[100] = "/default.avi";
-    char new_filename_ori[100] = "default.avi";
+    char new_filename[120] = "/default.avi";
+    char new_filename_ori[120] = "default.avi";
   
-    char  buf[120];
+    char  buf[300];
     size_t buf_len;
     char  new_res[20];
   
@@ -1663,7 +1663,7 @@ static esp_err_t record_handler(httpd_req_t *req) {
       if (buf_len > 1) {
         if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
           ESP_LOGI(TAG, "Found URL query => %s", buf);
-          char param[100];
+          char param[200];
           /* Get value of expected key from query string */
           //Serial.println(" ... parameters");
 
