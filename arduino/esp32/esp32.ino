@@ -82,8 +82,8 @@ int IncludeInternet = 3;      // 0 for no internet, 1 for time only, 2 streaming
 WiFiClientSecure client;
 HTTPClient http;
 
-const char* ssid = "***";
-const char* password = "***";
+const char* ssid = "******";
+const char* password = "******";
 
 char ftp_server[] = "******"; // also http ip
 char ftp_user[]   = "******";
@@ -222,8 +222,9 @@ File logfile;
 File avifile;
 File idxfile;
 
-char avi_file_name[120];
-char avi_file_name_ori[120];
+char avi_file_name[300];
+char avi_file_name_ori[300];
+char avi_shortened_name[100] = "ftp_avi.avi";
 
 static int i = 0;
 uint16_t frame_cnt = 0;
@@ -264,13 +265,13 @@ uint8_t idx1_buf[4] = {0x69, 0x64, 0x78, 0x31};    // "idx1"
 char http_url[100];
 char payload[500];
 
-bool sendFileToFtp(char* localFile, char* address) {
+bool sendFileToFtp(char* localFile) {
   ftp.OpenConnection();
 
   // Create the new image file and send the image
   ftp.ChangeWorkDir(".");
   ftp.InitFile("Type I");
-  ftp.NewFile(address);
+  ftp.NewFile(avi_shortened_name);
 
   Serial.println("Opening file system");
     
@@ -330,7 +331,7 @@ bool testRaspiConnection() {
   }
 }
 
-bool triggerFileUpload(char* addr) {
+bool triggerFileUpload(char* file_name) {
 
   sprintf(http_url, "http://%s:8000/upload", ftp_server);
   http.begin(http_url);
@@ -338,7 +339,7 @@ bool triggerFileUpload(char* addr) {
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Accept","*/*");
 
-  sprintf(payload, "{\"filePath\": \"/file/%s\",\"targetPath\": \"/%s\"}", addr, addr);
+  sprintf(payload, "{\"filePath\": \"/file/%s\",\"targetPath\": \"/%s\"}", avi_shortened_name, file_name);
 
   int httpResponseCode = http.POST(payload);
 
@@ -1312,8 +1313,11 @@ static esp_err_t end_avi() {
     idxfile.close();
     avifile.close();
 
+    Serial.println(avi_file_name);
+    Serial.println(avi_file_name_ori);
+
     // sendFTP
-    while (!sendFileToFtp(avi_file_name, avi_file_name_ori)){
+    while (!sendFileToFtp(avi_file_name)){
       Serial.println("failed to upload in ftp... retrying is 1 second");
       delay(1000);
     }
@@ -1652,8 +1656,8 @@ static esp_err_t record_handler(httpd_req_t *req) {
     int new_quality = s->status.quality;
     int new_xlength = avi_length;
     int new_exposure = exposure;
-    char new_filename[120] = "/default.avi";
-    char new_filename_ori[120] = "default.avi";
+    char new_filename[300] = "/default.avi";
+    char new_filename_ori[300] = "default.avi";
   
     char  buf[300];
     size_t buf_len;
@@ -1663,7 +1667,7 @@ static esp_err_t record_handler(httpd_req_t *req) {
       if (buf_len > 1) {
         if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
           ESP_LOGI(TAG, "Found URL query => %s", buf);
-          char param[200];
+          char param[500];
           /* Get value of expected key from query string */
           //Serial.println(" ... parameters");
 
@@ -1671,7 +1675,7 @@ static esp_err_t record_handler(httpd_req_t *req) {
           if (httpd_query_key_value(buf, "file_name", param, sizeof(param)) == ESP_OK) {
   
             sprintf(new_filename_ori, "%s", param);
-            sprintf(new_filename, "/%s", new_filename_ori);
+            sprintf(new_filename, "/%s", param);
             Serial.print("file_name = ");
             Serial.println(param);            
   
@@ -2066,7 +2070,7 @@ void setup() {
   xTaskCreatePinnedToCore( the_restart, "the_restart", 1000, NULL, 2, &the_restart_task, 1); // prio 3, core 0
 
 //  // prio 3 - higher than the camera loop(), and the streaming
-  xTaskCreatePinnedToCore( the_camera_loop, "the_camera_loop", 8000, NULL, 3, &the_camera_loop_task, 0); // prio 3, core 0
+  xTaskCreatePinnedToCore( the_camera_loop, "the_camera_loop", 12000, NULL, 3, &the_camera_loop_task, 0); // prio 3, core 0
 //
 //  delay(100);
 
