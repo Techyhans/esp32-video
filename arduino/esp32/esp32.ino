@@ -224,7 +224,8 @@ File idxfile;
 
 char avi_file_name[300];
 char avi_file_name_ori[300];
-char avi_shortened_name[100] = "ftp_avi.avi";
+char avi_shortened_name[100];
+
 
 static int i = 0;
 uint16_t frame_cnt = 0;
@@ -1960,6 +1961,7 @@ void delete_old_stuff();
 
 void setup() {
 
+  sprintf(avi_shortened_name, "%s.avi", devstr);
   Serial.begin(115200);
   Serial.println("\n\n---");
 
