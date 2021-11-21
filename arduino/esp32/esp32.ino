@@ -71,6 +71,7 @@
 static const char vernum[] = "v50lpmod";
 char devname[30];
 String devstr =  "desklens";
+char avi_shortened_name[100] = "ftp_avi.avi";
 
 int IncludeInternet = 3;      // 0 for no internet, 1 for time only, 2 streaming with WiFiMan, 3 ssid in file, 4 default internet on and file
 
@@ -224,7 +225,6 @@ File idxfile;
 
 char avi_file_name[300];
 char avi_file_name_ori[300];
-char avi_shortened_name[100] = "ftp_avi.avi";
 
 static int i = 0;
 uint16_t frame_cnt = 0;
